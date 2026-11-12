@@ -19,6 +19,17 @@ export interface AnalyzeResponse {
   reason: string | null;
 }
 
+export class AnalysisError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly canRetrySameImage: boolean = false
+  ) {
+    super(message);
+    this.name = "AnalysisError";
+  }
+}
+
 export async function analyzeEmotion(image: Blob): Promise<AnalyzeResponse> {
   if (!API_URL) {
     throw new Error("No se configuró VITE_API_URL.");
@@ -48,41 +59,44 @@ export async function analyzeEmotion(image: Blob): Promise<AnalyzeResponse> {
       body: formData,
     });
   } catch {
-    throw new Error("No se pudo conectar con el servicio de análisis.");
+    throw new AnalysisError("No se pudo conectar con el servicio de análisis.", 0, true);
   }
 
   if (!response.ok) {
     if (response.status === 400) {
-      throw new Error("La solicitud de análisis no es válida.");
+      throw new AnalysisError("La solicitud de análisis no es válida.", 400, false);
     }
     if (response.status === 401) {
-      throw new Error("Tu sesión ha expirado. Inicia sesión nuevamente.");
+      throw new AnalysisError("Tu sesión ha expirado. Inicia sesión nuevamente.", 401, false);
     }
     if (response.status === 415) {
-      throw new Error("El formato de la imagen no es compatible. Usa JPG o PNG.");
+      throw new AnalysisError("El formato de la imagen no es compatible. Usa JPG o PNG.", 415, false);
     }
     if (response.status === 422) {
       const body = await response.json().catch(() => null);
-      if (body && typeof body === "object" && "error" in body) {
-        throw new Error(String(body.error));
+      let message = "No se pudo detectar un rostro en la imagen.";
+      if (body && typeof body === "object" && "error" in body && body.error) {
+        message = String(body.error);
       }
-      throw new Error("No pudimos detectar un rostro. Intenta de nuevo.");
+      throw new AnalysisError(message, 422, false);
     }
     if (response.status === 429) {
-      throw new Error(
-        "Has alcanzado el límite de análisis. Espera un momento antes de volver a intentar."
+      throw new AnalysisError(
+        "Has alcanzado el límite de análisis. Espera un momento antes de volver a intentar.",
+        429,
+        true
       );
     }
     if (response.status === 502) {
-      throw new Error("El servicio de análisis no está disponible.");
+      throw new AnalysisError("El servicio de análisis no está disponible.", 502, true);
     }
     if (response.status === 503) {
-      throw new Error("El servicio de análisis se está configurando.");
+      throw new AnalysisError("El servicio de análisis se está configurando.", 503, true);
     }
     if (response.status === 504) {
-      throw new Error("El análisis tardó demasiado. Intenta de nuevo.");
+      throw new AnalysisError("El análisis tardó demasiado. Intenta de nuevo.", 504, true);
     }
-    throw new Error(`Error del servidor: ${response.status}`);
+    throw new AnalysisError(`Error del servidor: ${response.status}`, response.status, true);
   }
 
   return (await response.json()) as AnalyzeResponse;

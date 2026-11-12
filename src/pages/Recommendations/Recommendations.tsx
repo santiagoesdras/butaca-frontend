@@ -42,9 +42,12 @@ export default function Recommendations() {
   const {
     step: detectionStep,
     error: detectionError,
+    canRetrySameImage,
     analysis,
     savedId,
     analyze,
+    retryAnalyze,
+    clearError: clearDetectionError,
     saveWithEmotion,
     reset: resetDetection,
   } = useEmotionDetection();
@@ -88,8 +91,20 @@ export default function Recommendations() {
   };
 
   const handleCapture = async (blob: Blob) => {
-    await analyze(blob);
-    setFlowStep("result");
+    const success = await analyze(blob);
+    // Solo avanzamos a "result" si el análisis fue exitoso.
+    // Si falla (p.ej. 502), la cámara permanece montada y CameraView
+    // muestra el banner de error con opciones de reintento.
+    if (success) setFlowStep("result");
+  };
+
+  const handleRetryAnalysis = async () => {
+    const success = await retryAnalyze();
+    if (success) setFlowStep("result");
+  };
+
+  const handleNewCapture = () => {
+    clearDetectionError();
   };
 
   const handleConfirmEmotion = useCallback(
@@ -164,6 +179,10 @@ export default function Recommendations() {
           onCapture={handleCapture}
           onClose={handleClose}
           analyzing={detectionStep === "analyzing"}
+          analyzeError={detectionError}
+          canRetryAnalysis={canRetrySameImage}
+          onRetryAnalysis={handleRetryAnalysis}
+          onNewCapture={handleNewCapture}
         />
       )}
 
@@ -178,7 +197,7 @@ export default function Recommendations() {
         />
       )}
 
-      {(error || detectionError) && (
+      {flowStep !== "camera" && (error || detectionError) && (
         <div className="surface-card flex flex-col items-center rounded-2xl border-accent/30 p-8 text-center">
           <AlertCircle className="mb-3 size-8 text-accent" />
           <p className="mb-4 text-sm font-semibold text-foreground">
