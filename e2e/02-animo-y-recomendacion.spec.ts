@@ -52,6 +52,33 @@ test.describe("Ánimo y recomendación", () => {
     expect(butaca.history[0].recommendations.map((rec) => rec.title)).toEqual(["Coco"]);
   });
 
+  test("un segundo análisis el mismo día no cambia la emoción de la recomendación anterior", async ({ page }) => {
+    const butaca = new FakeButaca();
+    await butaca.install(page);
+    await page.goto("/recommendations");
+
+    const analyzeAndConfirm = async (start: string, type: "Película" | "Serie") => {
+      await page.getByRole("button", { name: start }).click();
+      await page.getByRole("button", { name: "Aceptar" }).click();
+      await page.getByRole("button", { name: "Capturar y analizar" }).click();
+      await page.getByRole("button", { name: type }).click();
+      await page.getByRole("button", { name: "Confirmar" }).click();
+      await expect(page.getByText("Tu recomendación")).toBeVisible();
+    };
+
+    butaca.analysis = { suggestedExpression: "SAD", confidence: 91.2, reason: null };
+    await analyzeAndConfirm("Analizar mi ánimo", "Película");
+    butaca.analysis = { suggestedExpression: "HAPPY", confidence: 88, reason: null };
+    await analyzeAndConfirm("Analizar otra vez", "Serie");
+
+    // El día queda con la última emoción, pero cada recomendación conserva la suya.
+    expect(butaca.history).toHaveLength(1);
+    expect(butaca.history[0].mood).toBe("HAPPY");
+    const items = page.getByRole("listitem");
+    await expect(items.filter({ hasText: "Coco" })).toContainText("Tristeza");
+    await expect(items.filter({ hasText: "Breaking Bad" })).toContainText("Felicidad");
+  });
+
   test("si no da permiso, no se enciende la cámara ni se analiza nada", async ({ page }) => {
     const butaca = new FakeButaca();
     butaca.consent = true; // tenía un consentimiento previo

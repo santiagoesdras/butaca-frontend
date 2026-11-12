@@ -1,5 +1,5 @@
 import { Clock3, CalendarDays, Film } from "lucide-react";
-import { EMOTIONS, toFrontendEmotion } from "@/lib/emotions";
+import { EMOTIONS, moodLabel, toFrontendEmotion } from "@/lib/emotions";
 import type { HistoryEntry } from "@/types/history";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Badge } from "@/components/ui/badge";
@@ -89,6 +89,9 @@ export function DayDetail({ entry }: DayDetailProps) {
                       {rec.media_type === "tv" ? "Serie" : "Película"} recomendada:
                     </span>{" "}
                     {rec.title}
+                    {rec.mood && (
+                      <span className="text-xs"> · por {moodLabel(rec.mood).toLowerCase()}</span>
+                    )}
                   </p>
                 </div>
               ))}

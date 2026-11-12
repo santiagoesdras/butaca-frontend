@@ -118,15 +118,22 @@ export default function MovieDetails({
         </button>
 
         <div className="grid gap-6 sm:grid-cols-[220px_1fr]">
-          <div className="overflow-hidden rounded-xl bg-[#0e2520]">
+          {/*
+            La columna del póster se estira a la altura del texto (grilla). La imagen la cubre completa
+            (object-cover) para no dejar una franja vacía debajo; mide como mínimo lo de un póster (2:3).
+          */}
+          <div
+            data-testid="details-poster"
+            className="relative mx-auto aspect-[2/3] w-full max-w-[220px] overflow-hidden rounded-xl bg-[#0e2520] sm:aspect-auto sm:min-h-[330px] sm:max-w-none"
+          >
             {posterUrl ? (
               <img
                 src={posterUrl}
                 alt={`Póster de ${content.title}`}
-                className="w-full object-cover"
+                className="absolute inset-0 h-full w-full object-cover"
               />
             ) : (
-              <div className="flex aspect-[2/3] items-center justify-center p-4 text-center text-[#7c8075]">
+              <div className="absolute inset-0 flex items-center justify-center p-4 text-center text-[#7c8075]">
                 Póster no disponible
               </div>
             )}

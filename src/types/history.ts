@@ -29,6 +29,10 @@ export interface SavedRecommendation {
   vote_average: number | null;
   genre_ids: number[];
   saved_at: string;
+  /** Emoción con la que se hizo esta recomendación (puede diferir de la emoción final del día). */
+  mood: MoodCode;
+  mood_name: string;
+  mood_detected_at: string;
 }
 
 /** Un día del historial, tal como lo devuelve GET /api/v1/emotions/history. */
@@ -78,6 +82,6 @@ export interface MoodSummary {
     by_media_type: { movie: number; tv: number };
     by_mood: MoodCount[];
     by_genre: { genre_id: number; count: number }[];
-    recent: (SavedRecommendation & { mood: MoodCode; mood_name: string; date: string })[];
+    recent: (SavedRecommendation & { date: string })[];
   };
 }

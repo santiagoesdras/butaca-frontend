@@ -24,7 +24,7 @@ import {
 
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
-import { EMOTIONS, toFrontendEmotion } from "@/lib/emotions";
+import { EMOTIONS, moodLabel, toFrontendEmotion } from "@/lib/emotions";
 import type { Emotion, MoodSummary, SummaryPeriod } from "@/types/history";
 
 import {
@@ -150,7 +150,7 @@ export default function Dashboard() {
         key: `${rec.date}-${rec.tmdb_id}-${rec.media_type}`,
         title: rec.title,
         emotion: rec.mood,
-        emotionName: rec.mood_name,
+        emotionName: moodLabel(rec.mood),
         date: rec.date,
         mediaType: rec.media_type,
       })),

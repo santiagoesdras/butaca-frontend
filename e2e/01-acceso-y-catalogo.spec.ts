@@ -40,6 +40,9 @@ test.describe("Acceso y catálogo", () => {
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("heading", { name: "Coco" })).toBeVisible();
     await expect(dialog.getByText("Animación, Familia")).toBeVisible();
+    // El póster ocupa toda su columna: sin franja vacía debajo aunque el texto sea más alto.
+    const poster = await dialog.getByTestId("details-poster").boundingBox();
+    expect(poster?.height ?? 0).toBeGreaterThanOrEqual(330);
     await dialog.getByRole("button", { name: "Cerrar detalles" }).click();
     await expect(dialog).toBeHidden();
 

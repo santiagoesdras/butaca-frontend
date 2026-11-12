@@ -73,6 +73,7 @@ interface HistoryEntry {
   detected_at: string;
   recommendations: (Pick<Media, "title" | "poster_path" | "release_date" | "vote_average" | "genre_ids"> & {
     tmdb_id: number; media_type: MediaType; overview: string | null; saved_at: string;
+    mood: Mood; mood_name: string; mood_detected_at: string;
   })[];
 }
 
@@ -122,6 +123,7 @@ export class FakeButaca {
           tmdb_id: recommendation.id, media_type: recommendation.media_type, title: recommendation.title,
           poster_path: recommendation.poster_path, overview: recommendation.overview, release_date: recommendation.release_date,
           vote_average: recommendation.vote_average, genre_ids: recommendation.genre_ids, saved_at: `${date}T20:05:00.000Z`,
+          mood, mood_name: MOOD_NAMES[mood], mood_detected_at: `${date}T20:00:00.000Z`,
         }] : [],
       });
     }
@@ -231,7 +233,9 @@ export class FakeButaca {
       const entry = this.history.find((item) => item.id === saved[1]);
       if (!entry) return json(404, { error: "Registro de emoción no encontrado" });
       const input = JSON.parse(body ?? "{}");
-      const recommendation = { ...input, tmdb_id: Number(saved[3]), media_type: saved[2] as MediaType, saved_at: new Date().toISOString() };
+      // Como el backend: la recomendación conserva la emoción vigente del día al guardarla.
+      const recommendation = { ...input, tmdb_id: Number(saved[3]), media_type: saved[2] as MediaType, saved_at: new Date().toISOString(),
+        mood: entry.mood, mood_name: entry.name, mood_detected_at: entry.detected_at };
       entry.recommendations = [...entry.recommendations.filter((rec) => rec.tmdb_id !== recommendation.tmdb_id), recommendation];
       return json(200, recommendation);
     }
@@ -294,7 +298,7 @@ export class FakeButaca {
       const bucket = buckets.get(period === "year" ? entry.date.slice(0, 7) : entry.date);
       if (bucket) bucket[entry.mood] += 1;
     });
-    const saved = entries.flatMap((entry) => entry.recommendations.map((rec) => ({ ...rec, mood: entry.mood, mood_name: entry.name, date: entry.date })));
+    const saved = entries.flatMap((entry) => entry.recommendations.map((rec) => ({ ...rec, date: entry.date })));
     const byGenre = new Map<number, number>();
     saved.forEach((rec) => rec.genre_ids.forEach((genre) => byGenre.set(genre, (byGenre.get(genre) ?? 0) + 1)));
     return {

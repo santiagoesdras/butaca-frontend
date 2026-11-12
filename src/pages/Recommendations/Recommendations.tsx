@@ -23,7 +23,7 @@ import {
   revokeCameraConsent,
 } from "@/services/historyService";
 import { useEmotionDetection } from "@/hooks/useEmotionDetection";
-import { EMOTIONS, toFrontendEmotion } from "@/lib/emotions";
+import { EMOTIONS, moodLabel, toFrontendEmotion } from "@/lib/emotions";
 import type { HistoryEntry } from "@/types/history";
 
 type FlowStep = "idle" | "permission" | "camera" | "result" | "recommendation";
@@ -327,7 +327,9 @@ export default function Recommendations() {
           <ul className="space-y-3">
             {historyEntries.flatMap((entry) =>
               entry.recommendations.map((rec) => {
-                const emotion = toFrontendEmotion(entry.mood);
+                // Cada recomendación muestra la emoción con la que se hizo, no la última del día.
+                const recMood = rec.mood ?? entry.mood;
+                const emotion = toFrontendEmotion(recMood);
                 const emotionInfo = emotion ? EMOTIONS[emotion] : null;
                 return (
                   <li
@@ -367,7 +369,7 @@ export default function Recommendations() {
                               "var(--muted-foreground)",
                           }}
                         >
-                          {entry.name}
+                          {moodLabel(recMood)}
                         </span>
                         <span>·</span>
                         <span>{formatDate(entry.date)}</span>
