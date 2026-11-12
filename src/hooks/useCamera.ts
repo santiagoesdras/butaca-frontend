@@ -47,6 +47,10 @@ export function useCamera() {
         return;
       }
 
+      // Si ya había un stream (por ejemplo, la cámara se inició dos veces al remontar el componente),
+      // se apaga antes de reemplazarlo: de lo contrario la cámara quedaría encendida sin control.
+      const previous = streamRef.current as MediaStream | null;
+      if (previous && previous !== stream) previous.getTracks().forEach((t) => t.stop());
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -94,7 +98,21 @@ export function useCamera() {
   /** Captura el frame actual como Blob JPEG. */
   const capture = useCallback(async (): Promise<Blob | null> => {
     const video = videoRef.current;
-    if (!video || video.videoWidth === 0) return null;
+    if (!video) return null;
+    if (video.videoWidth === 0) {
+      // El botón puede habilitarse un instante antes de que llegue el primer cuadro: se espera
+      // (hasta 3 s) en lugar de ignorar el clic sin avisar.
+      await new Promise<void>((resolve) => {
+        const done = () => {
+          clearTimeout(timer);
+          video.removeEventListener("loadeddata", done);
+          resolve();
+        };
+        const timer = setTimeout(done, 3000);
+        video.addEventListener("loadeddata", done, { once: true });
+      });
+      if (video.videoWidth === 0) return null;
+    }
 
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;

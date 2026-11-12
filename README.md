@@ -121,8 +121,9 @@ Toda la comunicación con el API Gateway está centralizada en `src/services/`. 
 | `movieService` | `GET /api/v1/media/:media_type/:id` | ❌ | Detalle de película/serie (MovieDetails y resolución de favoritos) |
 | `recommendationsService` | `GET /api/v1/recommendations?media_type=&mood=&limit=&language=` | ✅ | Recomendación única por emoción |
 | `emotionService` | `POST /api/v1/emotions/analyze` | ✅ | Análisis de la captura de cámara (multipart, efímero) |
-| `historyService` | `POST /api/v1/emotions/detections` | ✅ | Persistir la emoción detectada (base64 + `time_zone`) |
-| `historyService` | `GET /api/v1/emotions/history?period=7d\|30d` | ✅ | Historial emocional (Dashboard, History, Recommendations) |
+| `historyService` | `POST /api/v1/emotions/history` | ✅ | Guardar la emoción **confirmada** (`mood`, `confidence` opcional, `time_zone`), sin imagen |
+| `historyService` | `GET /api/v1/emotions/history?period=30d` o `?year=YYYY` | ✅ | Historial emocional (History con el año completo, Recommendations) |
+| `historyService` | `GET /api/v1/emotions/summary?period=7d\|30d\|year` | ✅ | Datos del Dashboard ya agregados por el backend |
 | `historyService` | `PUT /api/v1/emotions/history/:id/recommendations/:media_type/:tmdb_id` | ✅ | Asociar la recomendación a la detección |
 | `historyService` | `GET/PUT/DELETE /api/v1/emotions/consent` | ✅ | Consentimiento de cámara |
 | `favoritesService` | `GET /api/v1/library/favorites` | ✅ | Lista de favoritos del usuario |
@@ -200,27 +201,29 @@ El flujo completo está en `Recommendations.tsx` y usa `useCamera`, `useEmotionD
    - El back responde { suggestedExpression, confidence, faces, reason }
 5. EmotionResult muestra la emoción y pregunta "¿Película o serie?"
 6. Usuario confirma:
-   - useEmotionDetection.saveWithEmotion() convierte el Blob a base64
-   - POST /emotions/detections → guarda la emoción, devuelve { id, ... }
+   - useEmotionDetection.saveWithEmotion(emoción) → POST /emotions/history con { mood, confidence?, time_zone }
+     (sin imagen: la foto solo viaja una vez, a /analyze; confidence se envía solo si se confirmó la sugerencia)
    - GET /recommendations?mood=<emoción>&media_type=<movie|tv>&limit=1
    - PUT /history/:id/recommendations/:media_type/:tmdb_id → guarda la recomendación
 7. Se muestra la recomendación única y se refresca la lista histórica
 
-Privacidad: la imagen se envía al backend, que la procesa con AWS Rekognition y no la persiste. El frontend no guarda la imagen en ningún lado (ni en localStorage, ni en IndexedDB). Solo se persiste la emoción detectada y la recomendación asociada.
+Privacidad: la imagen se envía **una sola vez** al backend (`/analyze`), que la procesa con AWS Rekognition y no la persiste. El frontend no guarda la imagen en ningún lado (ni en localStorage, ni en IndexedDB). Solo se persiste la emoción detectada y la recomendación asociada.
 
 Consentimiento: se pide una vez y se guarda en camera_consents (back). Si el usuario cancela en el CameraPermission, se revoca con DELETE /consent. El navegador mantiene su propio permiso de cámara (no se puede revocar desde la app).
 
 ## 7. Historial emocional y Dashboard
 
-`useMoodHistory(period)` carga `GET /api/v1/emotions/history?period=30d` y devuelve `HistoryEntry[]`. Lo consumen:
+`useMoodHistory({ period })` o `useMoodHistory({ year })` carga `GET /api/v1/emotions/history` y devuelve `HistoryEntry[]`. `useMoodSummary(period)` carga `GET /api/v1/emotions/summary`. Los consumen:
 
-- **`History.tsx`**: muestra un heatmap anual (estilo GitHub) con un color por día según la emoción primaria. Al hacer clic en un día, `DayDetail` muestra la emoción, la hora y las recomendaciones guardadas de ese día.
-- **`Dashboard.tsx`**: muestra gráficas de Recharts (distribución de emociones en PieChart, evolución en LineChart), un contador de días con registro, la emoción predominante y las recomendaciones recientes del historial.
+- **`History.tsx`**: pide el año completo que se está mirando (`?year=YYYY`) y muestra un heatmap anual (estilo GitHub) con un color por día según la emoción primaria. Al hacer clic en un día, `DayDetail` muestra la emoción, la hora y las recomendaciones guardadas de ese día.
+- **`Dashboard.tsx`**: usa el resumen del backend (`useMoodSummary`) para las gráficas de Recharts (distribución en PieChart, evolución por día o por mes en LineChart), los días con registro, la emoción predominante, las recomendaciones recientes y **qué tipo de contenido se recomendó** (géneros más frecuentes y películas frente a series).
 - **`Recommendations.tsx`**: lista plana de recomendaciones históricas, con fecha + emoción como etiqueta.
 
 **Limitación conocida del back:** el esquema permite una detección por usuario y día (una nueva detección el mismo día reemplaza la anterior). El frontend asume esto: cada `HistoryEntry` es un día, no un evento individual.
 
-El Dashboard filtra las entradas por período (`7d`, `30d`, `year`) en el frontend. El back solo devuelve 30 días por defecto; si se necesita un año completo, hay que pedirlo con `?year=YYYY` (el front está preparado para eso, pero hoy usa `30d`).
+El Dashboard ya no calcula en el navegador: cada cambio de período (`7d`, `30d`, `Este año`) vuelve a pedir `GET /api/v1/emotions/summary?period=...`.
+
+**Emociones:** el contrato son los siete códigos del backend (`HAPPY`, `SAD`, `ANGRY`, `FEAR`, `DISGUSTED`, `SURPRISED`, `CALM`). `src/lib/emotions.ts` los traduce a claves internas, etiquetas y colores; `moodLabel()` devuelve la etiqueta en español de un código.
 
 ## 8. Favoritos
 
@@ -291,6 +294,18 @@ npm run dev          # Servidor de desarrollo (Vite)
 npm run build        # Build de producción (tsc + vite build)
 npm run lint         # ESLint
 npm run preview      # Preview del build
+npm run test:e2e     # Pruebas E2E con Playwright (ver e2e/README.md)
+npm run test:e2e:ui  # Pruebas E2E en modo interactivo
+
+### Pruebas E2E e integración continua
+
+Tres flujos de usuario se prueban de punta a punta con Playwright en un Chromium real, con cámara simulada y el backend y Supabase simulados con el mismo contrato que el backend real:
+
+1. **Acceso y catálogo:** sin sesión redirige al login (Google/GitHub); con sesión muestra el catálogo y el detalle, sin llamar a TMDB desde el navegador.
+2. **Ánimo y recomendación:** consentimiento → cámara → análisis → confirmación → recomendación acorde al ánimo; verifica que la foto viaja una sola vez y que cancelar no enciende la cámara.
+3. **Favoritos y tablero:** guardar un favorito, verlo en "Mis favoritos" y comprobar el resumen del tablero por período.
+
+Detalles, cómo ejecutarlas y qué cubren: [`e2e/README.md`](e2e/README.md). GitHub Actions (`.github/workflows/ci.yml`) ejecuta lint, verificación de tipos, build y estas pruebas en cada push y pull request.
 
 ## 12. Cómo levantar el proyecto
 
