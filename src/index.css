@@ -1,0 +1,254 @@
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/shadcn.css";
+@import "@fontsource-variable/outfit";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  font-family: "Outfit Variable", sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  color-scheme: dark;
+
+  /* Identidad visual de Butaca */
+  --background: #0f0b09;
+  --foreground: #f5eee8;
+
+  --card: #17120f;
+  --card-foreground: #f5eee8;
+
+  --popover: #17120f;
+  --popover-foreground: #f5eee8;
+
+  /* Verde petróleo */
+  --primary: #1f5656;
+  --primary-foreground: #f5eee8;
+
+  /* Verde oscuro */
+  --secondary: #0e2520;
+  --secondary-foreground: #e8f0eb;
+
+  /* Superficies secundarias */
+  --muted: #211a16;
+  --muted-foreground: #a99b8e;
+
+  /* Terracota */
+  --accent: #dd6122;
+  --accent-foreground: #0f0b09;
+
+  /* Estados */
+  --destructive: #781d0d;
+
+  /* Bordes e interacción */
+  --border: #332820;
+  --input: #332820;
+  --ring: #1f5656;
+
+  /* Gráficas */
+  --chart-1: #1f5656;
+  --chart-2: #dd6122;
+  --chart-3: #6d523e;
+  --chart-4: #7c8075;
+  --chart-5: #781d0d;
+
+  --radius: 0.75rem;
+
+  /* Jerarquía tipográfica */
+  --weight-display: 900;
+  --weight-heading: 800;
+  --weight-subheading: 700;
+  --weight-card-title: 700;  
+  --weight-label: 600;
+  --weight-body: 400;
+  --weight-secondary: 500;
+
+  /* Sidebar */
+  --sidebar: #0a0806;              
+  --sidebar-foreground: #e8ddd2;
+  --sidebar-primary: #1f5656;
+  --sidebar-primary-foreground: #f5eee8;
+  --sidebar-accent: #1f5656;
+  --sidebar-accent-foreground: #f5eee8;
+  --sidebar-border: #1f1a16;
+  --sidebar-ring: #1f5656;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Outfit Variable", sans-serif;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --font-sans: "Outfit Variable", sans-serif;
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+  h1 {
+    font-weight: var(--weight-display);
+    letter-spacing: -0.04em;
+  }
+  h2 {
+    font-weight: var(--weight-heading);
+    letter-spacing: -0.03em;
+  }
+  h3,h4 {
+    font-weight: var(--weight-subheading);
+    letter-spacing: -0.02em;
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+}
+
+@layer utilities {
+  /* Superficie base: gradiente + luz interior + sombra profunda */
+  .surface-card {
+    background:
+      radial-gradient(ellipse at top left, hsl(var(--secondary) / 0.45), transparent 55%),
+      linear-gradient(160deg, hsl(var(--card)), hsl(var(--background)));
+    border: 1px solid hsl(var(--border) / 0.7);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--secondary) / 0.25),
+      0 24px 48px -24px rgba(0, 0, 0, 0.75);
+  }
+
+  .surface-card-hover {
+    transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+  }
+
+  .surface-card-hover:hover {
+    border-color: hsl(var(--accent) / 0.45);
+    box-shadow:
+      inset 0 1px 0 hsl(var(--accent) / 0.2),
+      0 28px 56px -24px rgba(0, 0, 0, 0.85),
+      0 0 0 1px hsl(var(--accent) / 0.15);
+  }
+
+  /* Eyebrow dramático */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: hsl(var(--accent));
+  }
+
+  /* Título de póster */
+  .title-poster {
+    font-weight: var(--weight-display);
+    letter-spacing: -0.045em;
+    line-height: 0.95;
+    text-transform: uppercase;
+  }
+
+  /* Línea divisoria sutil */
+  .rule {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      transparent,
+      hsl(var(--border)),
+      transparent
+    );
+  }
+
+  /* sidebar */
+  .sidebar-surface {
+    background:
+      linear-gradient(
+        180deg,
+        hsl(var(--sidebar)) 0%,
+        hsl(var(--background)) 100%
+      );
+  }
+}
