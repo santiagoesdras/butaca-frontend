@@ -96,7 +96,9 @@ export function DayDetail({ entry }: DayDetailProps) {
           )}
 
           <Badge variant="outline">
-            {entry.confidence.toFixed(1)}% de confianza
+            {entry.confidence !== null
+              ? `${entry.confidence.toFixed(1)}% de confianza`
+              : "Elegida por ti"}
           </Badge>
         </div>
       </div>

@@ -1,12 +1,13 @@
 import { useCallback, useState } from "react";
 import {
   analyzeEmotion,
-  blobToBase64,
   AnalysisError,
   type AnalyzeResponse,
+  type EmotionCode,
 } from "@/services/emotionService";
 import {
-  saveDetection,
+  saveMood,
+  browserTimeZone,
   grantCameraConsent,
   getCameraConsent,
 } from "@/services/historyService";
@@ -70,19 +71,20 @@ export function useEmotionDetection() {
     setPendingBlob(null);
   }, []);
 
+  /**
+   * Guarda la emoción confirmada por el usuario. La imagen no se vuelve a enviar: solo pasó una vez
+   * por /analyze. La confianza se manda únicamente si se confirmó la misma emoción que sugirió el análisis.
+   */
   const saveWithEmotion = useCallback(
-    async (emotion: string, timeZone: string) => {
-      if (!pendingBlob) {
-        setError("No hay imagen pendiente.");
-        setStep("error");
-        return null;
-      }
+    async (emotion: EmotionCode, timeZone: string = browserTimeZone()) => {
       setStep("saving");
       try {
         await ensureConsent();
-        const base64 = await blobToBase64(pendingBlob);
-        const record = await saveDetection(base64, timeZone);
+        const confidence =
+          analysis?.suggestedExpression === emotion ? analysis.confidence : null;
+        const record = await saveMood(emotion, confidence, timeZone);
         setSavedId(record.id);
+        setPendingBlob(null); // la foto ya no se necesita
         setStep("done");
         return record.id;
       } catch (e) {
@@ -93,7 +95,7 @@ export function useEmotionDetection() {
         return null;
       }
     },
-    [pendingBlob, ensureConsent]
+    [analysis, ensureConsent]
   );
 
   const reset = useCallback(() => {

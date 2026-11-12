@@ -115,10 +115,7 @@ export default function Recommendations() {
       try {
         const historyId =
           savedId ??
-          (await saveWithEmotion(
-            analysis.suggestedExpression,
-            "America/Guatemala"
-          ));
+          (await saveWithEmotion(analysis.suggestedExpression));
         if (!historyId) throw new Error("No se pudo guardar la detección.");
 
         const results = await getRecommendations({

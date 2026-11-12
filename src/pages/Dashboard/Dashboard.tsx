@@ -5,6 +5,7 @@ import {
   Film,
   Heart,
   Smile,
+  Tags,
   TrendingUp,
 } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -24,15 +25,16 @@ import {
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { EMOTIONS, toFrontendEmotion } from "@/lib/emotions";
-import type { Emotion, HistoryEntry } from "@/types/history";
+import type { Emotion, MoodSummary, SummaryPeriod } from "@/types/history";
 
 import {
   FAVORITES_CHANGED_EVENT,
   getFavorites,
 } from "@/services/favoritesService";
-import { useMoodHistory } from "@/hooks/useMoodHistory";
+import { getGenres } from "@/services/movieService";
+import { useMoodSummary } from "@/hooks/useMoodSummary";
 
-type Period = "7d" | "30d" | "year";
+type Period = SummaryPeriod;
 
 const PERIODS: { value: Period; label: string }[] = [
   { value: "7d", label: "7 días" },
@@ -44,54 +46,27 @@ type TrendPoint = {
   label: string;
 } & Partial<Record<Emotion, number>>;
 
-/** Filtra las entradas del historial según el período elegido. */
-function filterByPeriod(entries: HistoryEntry[], period: Period): HistoryEntry[] {
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
+/** Etiqueta de cada punto de la evolución: día de la semana (7d), día y mes (30d) o mes (year). */
+function bucketLabel(bucket: string, period: Period): string {
   if (period === "year") {
-    const year = today.getFullYear();
-    return entries.filter((e) => e.date.startsWith(String(year)));
+    return new Date(`${bucket}-01T12:00:00`).toLocaleDateString("es-GT", { month: "short" });
   }
-
-  const days = period === "7d" ? 7 : 30;
-  const from = new Date(today);
-  from.setDate(from.getDate() - (days - 1));
-
-  return entries.filter((entry) => {
-    const date = new Date(`${entry.date}T12:00:00`);
-    return date >= from && date <= now;
-  });
+  const date = new Date(`${bucket}T12:00:00`);
+  return period === "7d"
+    ? date.toLocaleDateString("es-GT", { weekday: "short" })
+    : date.toLocaleDateString("es-GT", { day: "numeric", month: "short" });
 }
 
-function buildTrendData(entries: HistoryEntry[], period: Period): TrendPoint[] {
-  const buckets = new Map<string, TrendPoint>();
-
-  entries.forEach((entry, index) => {
-    const date = new Date(`${entry.date}T12:00:00`);
-
-    let label: string;
-
-    if (period === "year") {
-      label = date.toLocaleDateString("es-GT", { month: "short" });
-    } else if (period === "30d") {
-      label = `Semana ${Math.floor(index / 7) + 1}`;
-    } else {
-      label = date.toLocaleDateString("es-GT", { weekday: "short" });
+function buildTrendData(summary: MoodSummary | null, period: Period): TrendPoint[] {
+  if (!summary || summary.total_records === 0) return [];
+  return summary.timeline.map(({ bucket, counts }) => {
+    const point: TrendPoint = { label: bucketLabel(bucket, period) };
+    for (const [mood, count] of Object.entries(counts)) {
+      const emotion = toFrontendEmotion(mood);
+      if (emotion) point[emotion] = count;
     }
-
-    if (!buckets.has(label)) {
-      buckets.set(label, { label });
-    }
-
-    const bucket = buckets.get(label)!;
-    const emotion = toFrontendEmotion(entry.mood);
-    if (emotion) {
-      bucket[emotion] = (bucket[emotion] ?? 0) + 1;
-    }
+    return point;
   });
-
-  return Array.from(buckets.values());
 }
 
 function formatDate(date: string): string {
@@ -104,36 +79,36 @@ function formatDate(date: string): string {
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>("30d");
 
-  // --- Historial (backend real) ---
-  const { entries, loading: historyLoading, error: historyError } = useMoodHistory("30d");
+  // --- Resumen agregado por el backend (GET /api/v1/emotions/summary) ---
+  const { summary, loading: historyLoading, error: historyError } = useMoodSummary(period);
 
-  // --- Recomendaciones: las derivamos del historial, no hace falta pedirlas aparte ---
-  // El back ya guarda las recomendaciones dentro de cada HistoryEntry.
+  // --- Favoritos (API de Library) ---
+  const [favoriteCount, setFavoriteCount] = useState<number | null>(null);
 
-  // --- Favoritos (localStorage por ahora) ---
-  // TODO(backend): migrar a GET /api/v1/library/favorites cuando se decida.
-    const [favoriteCount, setFavoriteCount] = useState<number | null>(null);
+  useEffect(() => {
+    async function update() {
+      try {
+        const favs = await getFavorites(true);
+        setFavoriteCount(favs.length);
+      } catch {
+        setFavoriteCount(0);
+      }
+    }
+    void update();
+    window.addEventListener(FAVORITES_CHANGED_EVENT, update);
+    return () => window.removeEventListener(FAVORITES_CHANGED_EVENT, update);
+  }, []);
 
-    useEffect(() => {
-        async function update() {
-            try {
-            const favs = await getFavorites(true);
-            setFavoriteCount(favs.length);
-            } catch {
-            setFavoriteCount(0);
-            }
-        }
-        void update();
-        window.addEventListener(FAVORITES_CHANGED_EVENT, update);
-        return () => window.removeEventListener(FAVORITES_CHANGED_EVENT, update);
-    }, []);
+  // --- Nombres de géneros para "qué tipo de contenido te recomendamos" ---
+  const [genreNames, setGenreNames] = useState<Map<number, string>>(new Map());
 
-  // --- Derivados ---
-  const filteredEntries = useMemo(
-    () => filterByPeriod(entries, period),
-    [entries, period]
-  );
+  useEffect(() => {
+    getGenres("all")
+      .then(({ genres }) => setGenreNames(new Map(genres.map((genre) => [genre.id, genre.name]))))
+      .catch(() => setGenreNames(new Map()));
+  }, []);
 
+  // --- Derivados del resumen ---
   const emotionCounts = useMemo(() => {
     const counts: Record<Emotion, number> = {
       happy: 0,
@@ -142,22 +117,18 @@ export default function Dashboard() {
       fearful: 0,
       disgusted: 0,
       surprised: 0,
+      calm: 0,
     };
-    filteredEntries.forEach((entry) => {
-      const emotion = toFrontendEmotion(entry.mood);
-      if (emotion) counts[emotion] += 1;
+    summary?.distribution.forEach(({ mood, count }) => {
+      const emotion = toFrontendEmotion(mood);
+      if (emotion) counts[emotion] = count;
     });
     return counts;
-  }, [filteredEntries]);
+  }, [summary]);
 
-  const dominantEmotion = useMemo(() => {
-    const list = Object.entries(emotionCounts) as [Emotion, number][];
-    return list.reduce<Emotion | null>((dom, [em, n]) => {
-      if (n === 0) return dom;
-      if (!dom || n > emotionCounts[dom]) return em;
-      return dom;
-    }, null);
-  }, [emotionCounts]);
+  const dominantEmotion: Emotion | null = summary?.predominant
+    ? toFrontendEmotion(summary.predominant.mood)
+    : null;
 
   const emotionData = useMemo(
     () =>
@@ -171,39 +142,35 @@ export default function Dashboard() {
     [emotionCounts]
   );
 
-  const trendData = useMemo(
-    () => buildTrendData(filteredEntries, period),
-    [filteredEntries, period]
-  );
+  const trendData = useMemo(() => buildTrendData(summary, period), [summary, period]);
 
-  // Recomendaciones históricas (las que ya están guardadas dentro de cada entry)
-  const recentRecommendations = useMemo(() => {
-    const all = filteredEntries.flatMap((entry) =>
-      entry.recommendations.map((rec) => ({
-        key: `${entry.id}-${rec.tmdb_id}-${rec.media_type}`,
-        title: rec.title,
-        emotion: entry.mood,
-        emotionName: entry.name,
-        date: entry.date,
-        savedAt: rec.saved_at,
-        mediaType: rec.media_type,
-      }))
-    );
-
-    return all
-      .sort(
-        (a, b) => new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime()
-      )
-      .slice(0, 5);
-  }, [filteredEntries]);
-
-  const totalRecommendations = useMemo(
+  const recentRecommendations = useMemo(
     () =>
-      filteredEntries.reduce((total, entry) => total + entry.recommendations.length, 0),
-    [filteredEntries]
+      (summary?.recommendations.recent ?? []).map((rec) => ({
+        key: `${rec.date}-${rec.tmdb_id}-${rec.media_type}`,
+        title: rec.title,
+        emotion: rec.mood,
+        emotionName: rec.mood_name,
+        date: rec.date,
+        mediaType: rec.media_type,
+      })),
+    [summary]
   );
 
-  const hasHistoryData = filteredEntries.length > 0;
+  const topGenres = useMemo(
+    () =>
+      (summary?.recommendations.by_genre ?? []).slice(0, 6).map(({ genre_id, count }) => ({
+        id: genre_id,
+        name: genreNames.get(genre_id) ?? `Género ${genre_id}`,
+        count,
+      })),
+    [summary, genreNames]
+  );
+
+  const totalRecommendations = summary?.recommendations.total ?? 0;
+  const byMediaType = summary?.recommendations.by_media_type ?? { movie: 0, tv: 0 };
+  const recordedDays = summary?.days_with_records ?? 0;
+  const hasHistoryData = (summary?.total_records ?? 0) > 0;
 
   return (
     <main className="space-y-6 sm:space-y-8">
@@ -268,7 +235,7 @@ export default function Dashboard() {
                     Días con registro
                   </p>
                   <p className="mt-2 text-3xl font-black tabular-nums text-foreground">
-                    {filteredEntries.length}
+                    {recordedDays}
                   </p>
                 </div>
 
@@ -288,7 +255,7 @@ export default function Dashboard() {
                         style={{ backgroundColor: EMOTIONS[dominantEmotion].color }}
                       />
                       <span className="text-xs text-muted-foreground">
-                        {emotionCounts[dominantEmotion]} días
+                        {emotionCounts[dominantEmotion]} {emotionCounts[dominantEmotion] === 1 ? "día" : "días"}
                       </span>
                     </div>
                   )}
@@ -527,6 +494,39 @@ export default function Dashboard() {
                       Aparecerán cuando registres tu ánimo con la cámara.
                     </p>
                   </div>
+                )}
+              </div>
+
+              {/* Tipo de contenido recomendado */}
+              <div className="space-y-3 rounded-lg border border-border bg-background/50 p-4">
+                <div className="flex items-center gap-2">
+                  <Tags className="size-4 text-primary" />
+                  <h3 className="font-bold text-foreground">
+                    Qué tipo de contenido te recomendamos
+                  </h3>
+                </div>
+                {totalRecommendations > 0 ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      {byMediaType.movie} {byMediaType.movie === 1 ? "película" : "películas"} ·{" "}
+                      {byMediaType.tv} {byMediaType.tv === 1 ? "serie" : "series"}
+                    </p>
+                    <div className="flex flex-wrap gap-2" data-testid="top-genres">
+                      {topGenres.map((genre) => (
+                        <span
+                          key={genre.id}
+                          className="rounded-full border border-border bg-card/60 px-3 py-1 text-xs text-foreground"
+                        >
+                          {genre.name}
+                          <span className="ml-1.5 font-semibold tabular-nums text-accent">{genre.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    Los géneros aparecerán cuando guardes recomendaciones según tu ánimo.
+                  </p>
                 )}
               </div>
 

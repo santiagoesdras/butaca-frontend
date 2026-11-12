@@ -1,9 +1,19 @@
 import { supabase } from "./supabase";
-import type { HistoryEntry, HistoryResponse } from "@/types/history";
+import type {
+  HistoryEntry,
+  HistoryResponse,
+  MoodCode,
+  MoodSummary,
+  SavedMoodResponse,
+  SummaryPeriod,
+} from "@/types/history";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
 export type HistoryPeriod = "7d" | "30d";
+
+/** Un período reciente (7d/30d) o un año calendario completo (para el mapa anual). */
+export type HistoryRange = { period: HistoryPeriod } | { year: number };
 
 async function getToken(): Promise<string> {
   const { data, error } = await supabase.auth.getSession();
@@ -18,13 +28,25 @@ function baseUrl(): string {
   return API_URL.replace(/\/$/, "");
 }
 
+/** Zona horaria IANA del navegador; define el día local de cada registro. */
+export function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 /* ------------------------------------------------------------------ */
-/* GET /api/v1/emotions/history?period=7d|30d                          */
+/* GET /api/v1/emotions/history?period=7d|30d  ó  ?year=YYYY           */
 /* ------------------------------------------------------------------ */
 
-export async function getHistory(period: HistoryPeriod = "30d"): Promise<HistoryEntry[]> {
+export async function getHistory(range: HistoryRange | HistoryPeriod = { period: "30d" }): Promise<HistoryEntry[]> {
   const token = await getToken();
-  const url = `${baseUrl()}/api/v1/emotions/history?period=${period}`;
+  const query = typeof range === "string"
+    ? `period=${range}`
+    : "year" in range ? `year=${range.year}` : `period=${range.period}`;
+  const url = `${baseUrl()}/api/v1/emotions/history?${query}`;
 
   let response: Response;
   try {
@@ -44,15 +66,41 @@ export async function getHistory(period: HistoryPeriod = "30d"): Promise<History
 }
 
 /* ------------------------------------------------------------------ */
-/* POST /api/v1/emotions/detections                                    */
+/* GET /api/v1/emotions/summary?period=7d|30d|year                     */
 /* ------------------------------------------------------------------ */
 
-export async function saveDetection(
-  imageBase64: string,
-  timeZone: string
-): Promise<HistoryEntry> {
+export async function getSummary(period: SummaryPeriod = "30d"): Promise<MoodSummary> {
   const token = await getToken();
-  const url = `${baseUrl()}/api/v1/emotions/detections`;
+  const url = `${baseUrl()}/api/v1/emotions/summary?period=${period}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  } catch {
+    throw new Error("No se pudo conectar con el servicio de historial.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) throw new Error("Tu sesión ha expirado.");
+    throw new Error(`Error del servidor: ${response.status}`);
+  }
+
+  return (await response.json()) as MoodSummary;
+}
+
+/* ------------------------------------------------------------------ */
+/* POST /api/v1/emotions/history                                       */
+/* Guarda la emoción CONFIRMADA por el usuario. La imagen ya no se     */
+/* vuelve a enviar: solo pasó una vez por /analyze.                    */
+/* ------------------------------------------------------------------ */
+
+export async function saveMood(
+  mood: MoodCode,
+  confidence: number | null,
+  timeZone: string = browserTimeZone()
+): Promise<SavedMoodResponse> {
+  const token = await getToken();
+  const url = `${baseUrl()}/api/v1/emotions/history`;
 
   let response: Response;
   try {
@@ -62,25 +110,26 @@ export async function saveDetection(
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ image: imageBase64, time_zone: timeZone }),
+      body: JSON.stringify(
+        confidence === null ? { mood, time_zone: timeZone } : { mood, confidence, time_zone: timeZone }
+      ),
     });
   } catch {
-    throw new Error("No se pudo conectar con el servicio de detección.");
+    throw new Error("No se pudo conectar con el servicio de historial.");
   }
 
   if (!response.ok) {
     if (response.status === 401) throw new Error("Tu sesión ha expirado.");
     if (response.status === 403) throw new Error("Necesitas dar permiso de cámara primero.");
-    if (response.status === 415) throw new Error("La imagen no es válida (JPEG o PNG).");
-    if (response.status === 422) {
+    if (response.status === 400) {
       const body = await response.json().catch(() => null);
       if (body && typeof body === "object" && "error" in body) throw new Error(String(body.error));
-      throw new Error("No se pudo determinar la emoción.");
+      throw new Error("No se pudo guardar la emoción.");
     }
     throw new Error(`Error del servidor: ${response.status}`);
   }
 
-  return (await response.json()) as HistoryEntry;
+  return (await response.json()) as SavedMoodResponse;
 }
 
 /* ------------------------------------------------------------------ */

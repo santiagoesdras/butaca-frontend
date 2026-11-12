@@ -12,7 +12,8 @@ export default function History() {
   const [year, setYear] = useState(() => new Date().getFullYear());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
-  const { entries, loading, error } = useMoodHistory();
+  // El mapa anual necesita el año completo, no solo los últimos 30 días.
+  const { entries, loading, error } = useMoodHistory({ year });
 
   const entriesThisYear = useMemo(
     () => entries.filter((entry) => entry.date.startsWith(String(year))),

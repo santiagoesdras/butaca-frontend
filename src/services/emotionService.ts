@@ -1,15 +1,10 @@
 import { supabase } from "./supabase";
+import type { MoodCode } from "@/types/history";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
-export type EmotionCode =
-  | "HAPPY"
-  | "SAD"
-  | "ANGRY"
-  | "FEAR"
-  | "DISGUSTED"
-  | "SURPRISED"
-  | "CALM";
+/** Códigos de emoción del contrato con el backend. */
+export type EmotionCode = MoodCode;
 
 export interface AnalyzeResponse {
   suggestedExpression: EmotionCode | null;
@@ -100,19 +95,4 @@ export async function analyzeEmotion(image: Blob): Promise<AnalyzeResponse> {
   }
 
   return (await response.json()) as AnalyzeResponse;
-}
-
-/** Convierte un Blob a base64 sin el prefijo "data:image/jpeg;base64,". */
-export async function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result;
-      if (typeof result !== "string") return reject(new Error("No se pudo leer la imagen."));
-      const comma = result.indexOf(",");
-      resolve(comma >= 0 ? result.slice(comma + 1) : result);
-    };
-    reader.onerror = () => reject(new Error("No se pudo leer la imagen."));
-    reader.readAsDataURL(blob);
-  });
 }

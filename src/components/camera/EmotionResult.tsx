@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EMOTIONS } from "@/lib/emotions";
+import { moodLabel } from "@/lib/emotions";
 import type { EmotionCode } from "@/services/emotionService";
 
 interface Props {
@@ -29,7 +29,8 @@ export function EmotionResult({ emotion, confidence, reason, onConfirm, onRetry,
     );
   }
 
-  const label = EMOTIONS[emotion.toLowerCase() as keyof typeof EMOTIONS]?.label ?? emotion;
+  // FEAR → "Miedo", CALM → "Calma": la clave interna no siempre es el código en minúsculas.
+  const label = moodLabel(emotion);
 
   return (
     <div className="surface-card mx-auto max-w-md rounded-2xl p-6 text-center sm:p-8">

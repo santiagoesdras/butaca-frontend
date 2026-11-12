@@ -1,5 +1,9 @@
-import type { Emotion, HistoryEntry } from "@/types/history";
+import type { Emotion, HistoryEntry, MoodCode } from "@/types/history";
 
+/**
+ * Etiqueta y color de cada emoción. Las claves son internas del frontend; el contrato con el
+ * backend usa los códigos en mayúsculas (MoodCode). Deben estar las siete del catálogo.
+ */
 export const EMOTIONS: Record<
   Emotion,
   { label: string; color: string }
@@ -28,33 +32,45 @@ export const EMOTIONS: Record<
     label: "Sorpresa",
     color: "#DD873F",
   },
+  calm: {
+    label: "Calma",
+    color: "#4FB3A9",
+  },
 };
 
 /** Mapea el código del back (HAPPY) al key del front (happy). */
-const BACKEND_TO_FRONTEND: Record<string, Emotion> = {
+const BACKEND_TO_FRONTEND: Record<MoodCode, Emotion> = {
   HAPPY: "happy",
   SAD: "sad",
   ANGRY: "angry",
   FEAR: "fearful",
   DISGUSTED: "disgusted",
   SURPRISED: "surprised",
+  CALM: "calm",
 };
 
 export function toFrontendEmotion(mood: string): Emotion | null {
-  return BACKEND_TO_FRONTEND[mood.toUpperCase()] ?? null;
+  return BACKEND_TO_FRONTEND[mood.toUpperCase() as MoodCode] ?? null;
 }
 
 /** Mapea el key del front (happy) al código del back (HAPPY). */
-export function toBackendMood(emotion: Emotion): string {
-  const map: Record<Emotion, string> = {
+export function toBackendMood(emotion: Emotion): MoodCode {
+  const map: Record<Emotion, MoodCode> = {
     happy: "HAPPY",
     sad: "SAD",
     angry: "ANGRY",
     fearful: "FEAR",
     disgusted: "DISGUSTED",
     surprised: "SURPRISED",
+    calm: "CALM",
   };
   return map[emotion];
+}
+
+/** Etiqueta en español de un código del backend (por ejemplo, FEAR → "Miedo"). */
+export function moodLabel(mood: string): string {
+  const emotion = toFrontendEmotion(mood);
+  return emotion ? EMOTIONS[emotion].label : mood;
 }
 
 /**
